@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Research Assistant</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- DOMPurify for XSS protection -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        surface: '#f9fafb',
+                        surfaceDark: '#f3f4f6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Markdown Styles */
+        .markdown-body h1 { font-size: 1.875rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 1rem; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem; }
+        .markdown-body h2 { font-size: 1.5rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #1f2937; }
+        .markdown-body h3 { font-size: 1.25rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; color: #374151; }
+        .markdown-body p { margin-bottom: 1rem; line-height: 1.7; color: #4b5563; }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; color: #4b5563; }
+        .markdown-body ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; color: #4b5563; }
+        .markdown-body li { margin-bottom: 0.5rem; }
+        .markdown-body strong { font-weight: 600; color: #111827; }
+        .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.875rem; }
+        .markdown-body th, .markdown-body td { border: 1px solid #e5e7eb; padding: 0.75rem; text-align: left; }
+        .markdown-body th { background-color: #f9fafb; font-weight: 600; color: #111827; }
+        .markdown-body a { color: #2563eb; text-decoration: underline; }
+        .markdown-body blockquote { border-left: 4px solid #e5e7eb; padding-left: 1rem; font-style: italic; color: #6b7280; margin-bottom: 1rem; }
+        
+        .tab-btn.active {
+            background-color: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+        
+        /* Audio visualizer animation */
+        .bar {
+            width: 6px;
+            background: #2563eb;
+            border-radius: 999px;
+            animation: bounce 1s infinite alternate;
+        }
+        @keyframes bounce {
+            0% { height: 8px; }
+            100% { height: 40px; }
+        }
+    </style>
+</head>
+<body class="bg-surface text-gray-800 h-screen flex flex-col font-sans overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0 z-10">
+        <div class="flex items-center gap-3">
+            <div class="bg-primary text-white p-2 rounded-lg">
+                <i class="fa-solid fa-chart-pie"></i>
+            </div>
+            <h1 class="text-xl font-bold text-gray-900 tracking-tight">Market Research Assistant</h1>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <!-- Language Selector -->
+            <div class="relative flex items-center border border-gray-300 rounded-md bg-gray-50 px-3 py-1.5 focus-within:ring-2 focus-within:ring-primary focus-within:border-primary">
+                <i class="fa-solid fa-globe text-gray-400 mr-2"></i>
+                <select id="languageSelect" class="bg-transparent border-none outline-none text-sm text-gray-700 w-24 appearance-none cursor-pointer">
+                    <option value="English">English</option>
+                    <option value="Spanish">Spanish</option>
+                    <option value="French">French</option>
+                    <option value="German">German</option>
+                    <option value="Arabic">Arabic</option>
+                    <option value="Japanese">Japanese</option>
+                    <option value="Chinese">Chinese</option>
+                </select>
+                <i class="fa-solid fa-chevron-down text-gray-400 ml-2 text-xs"></i>
+            </div>
+
+            <!-- API Key -->
+            <div class="flex items-center border border-gray-300 rounded-md bg-gray-50 px-3 py-1.5 w-64 focus-within:ring-2 focus-within:ring-primary focus-within:border-primary">
+                <i class="fa-solid fa-key text-gray-400 mr-2"></i>
+                <input type="password" id="apiKeyInput" placeholder="Gemini API Key..." class="bg-transparent border-none outline-none text-sm text-gray-700 w-full" />
+                <div id="apiStatus" class="w-3 h-3 rounded-full bg-gray-300 ml-2" title="API Disconnected"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex flex-1 overflow-hidden">
+        
+        <!-- Left Area (Research) -->
+        <section class="flex-1 flex flex-col min-w-0 border-r border-gray-200 bg-white relative">
+            
+            <!-- Research Input Bar -->
+            <div class="p-6 pb-4 border-b border-gray-100 shrink-0">
+                <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">In-Depth Research</h2>
+                <div class="flex gap-3">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                        <input type="text" id="productInput" placeholder="Enter product, brand, or market (e.g., 'Electric Vehicles in Europe')" 
+                            class="w-full pl-11 pr-4 py-3 bg-surfaceDark border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all text-gray-800 placeholder-gray-400 shadow-sm"
+                            onkeypress="if(event.key === 'Enter') startResearch()">
+                    </div>
+                    <button onclick="startResearch()" class="bg-primary hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2">
+                        <i class="fa-solid fa-bolt"></i> Generate
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="px-6 py-3 border-b border-gray-100 flex gap-2 overflow-x-auto hide-scrollbar shrink-0" id="tabsContainer">
+                <button onclick="switchTab('dashboard')" class="tab-btn active px-4 py-2 rounded-full text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 whitespace-nowrap transition-colors">
+                    <i class="fa-solid fa-chart-line mr-1"></i> Dashboard
+                </button>
+                <button onclick="switchTab('swot')" class="tab-btn px-4 py-2 rounded-full text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 whitespace-nowrap transition-colors">
+                    <i class="fa-solid fa-border-all mr-1"></i> SWOT Analysis
+                </button>
+                <button onclick="switchTab('pestele')" class="tab-btn px-4 py-2 rounded-full text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 whitespace-nowrap transition-colors">
+                    <i class="fa-solid fa-globe mr-1"></i> PESTELE
+                </button>
+                <button onclick="switchTab('porters')" class="tab-btn px-4 py-2 rounded-full text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 whitespace-nowrap transition-colors">
+                    <i class="fa-solid fa-shield-halved mr-1"></i> Porter's Five Forces
+                </button>
+                <button onclick="switchTab('presentation')" class="tab-btn px-4 py-2 rounded-full text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 whitespace-nowrap transition-colors">
+                    <i class="fa-solid fa-person-chalkboard mr-1"></i> Presentation
+                </button>
+                <button onclick="switchTab('spreadsheet')" class="tab-btn px-4 py-2 rounded-full text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 whitespace-nowrap transition-colors">
+                    <i class="fa-solid fa-table mr-1"></i> Spreadsheet
+                </button>
+                <button onclick="switchTab('video')" class="tab-btn px-4 py-2 rounded-full text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 whitespace-nowrap transition-colors bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100">
+                    <i class="fa-solid fa-circle-play mr-1"></i> Audio Report
+                </button>
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-1 overflow-y-auto p-8 relative" id="reportContentArea">
+                <!-- Placeholder -->
+                <div id="emptyState" class="h-full flex flex-col items-center justify-center text-center text-gray-400">
+                    <div class="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                        <i class="fa-solid fa-file-invoice text-4xl text-gray-300"></i>
+                    </div>
+                    <h3 class="text-xl font-medium text-gray-600 mb-2">No Research Generated Yet</h3>
+                    <p class="max-w-md mx-auto text-sm">Enter a product name above and click Generate to start your comprehensive market research. The AI will gather up-to-date data and build your reports.</p>
+                </div>
+
+                <!-- Loading State -->
+                <div id="loadingState" class="hidden h-full flex flex-col items-center justify-center text-center">
+                    <i class="fa-solid fa-circle-notch fa-spin text-4xl text-primary mb-4"></i>
+                    <h3 class="text-lg font-medium text-gray-700 mb-1" id="loadingText">Gathering Market Data...</h3>
+                    <p class="text-sm text-gray-500">Searching the web for latest statistics, reviews, and supply/demand.</p>
+                </div>
+
+                <!-- Actual Content -->
+                <div id="markdownOutput" class="markdown-body hidden max-w-4xl mx-auto"></div>
+                
+                <!-- Audio Player Area (Hidden by default) -->
+                <div id="audioPlayerArea" class="hidden max-w-2xl mx-auto mt-8 p-6 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-xl text-white">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center">
+                                <i class="fa-solid fa-podcast text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-lg leading-tight">Executive Summary Briefing</h3>
+                                <p class="text-xs text-gray-400" id="audioSubText">Market Research Audio Overview</p>
+                            </div>
+                        </div>
+                        <div class="flex items-end gap-1 h-8 opacity-0 transition-opacity" id="audioVisualizer">
+                            <div class="bar" style="animation-delay: 0.1s"></div>
+                            <div class="bar" style="animation-delay: 0.2s"></div>
+                            <div class="bar" style="animation-delay: 0.3s"></div>
+                            <div class="bar" style="animation-delay: 0.4s"></div>
+                            <div class="bar" style="animation-delay: 0.5s"></div>
+                        </div>
+                    </div>
+                    <audio id="ttsAudio" controls class="w-full rounded-lg" onplay="document.getElementById('audioVisualizer').classList.remove('opacity-0')" onpause="document.getElementById('audioVisualizer').classList.add('opacity-0')"></audio>
+                    <div id="audioScript" class="mt-4 text-sm text-gray-300 leading-relaxed max-h-48 overflow-y-auto pr-2 custom-scrollbar border-t border-white/10 pt-4">
+                        <!-- Script goes here -->
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Right Area (Chatbot) -->
+        <section class="w-96 flex flex-col bg-surface shrink-0 z-10 shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)]">
+            <div class="h-16 flex items-center px-4 border-b border-gray-200 bg-white shrink-0">
+                <i class="fa-solid fa-robot text-primary mr-2"></i>
+                <h2 class="font-semibold text-gray-800">Research Assistant</h2>
+            </div>
+            
+            <!-- Chat Messages -->
+            <div id="chatMessages" class="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+                <div class="flex gap-3">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-robot text-primary text-sm"></i>
+                    </div>
+                    <div class="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm border border-gray-100 text-sm text-gray-700">
+                        Hello! I'm your Market Research Assistant. Generate a report on the left, and then you can ask me specific questions about the data, trends, or sources!
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Input -->
+            <div class="p-4 bg-white border-t border-gray-200 shrink-0">
+                <div class="relative flex items-center">
+                    <textarea id="chatInput" rows="1" placeholder="Ask about the research..." 
+                        class="w-full pl-4 pr-12 py-3 bg-surfaceDark border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all text-sm resize-none overflow-hidden"
+                        oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"
+                        onkeypress="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }"></textarea>
+                    <button onclick="sendMessage()" class="absolute right-2 bottom-1.5 w-9 h-9 flex items-center justify-center bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fa-solid fa-paper-plane text-sm"></i>
+                    </button>
+                </div>
+                <div class="text-[10px] text-gray-400 mt-2 text-center">Responses are grounded in Google Search data.</div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50">
+        Message here
+    </div>
+
+    <script>
+        // State
+        let currentProduct = "";
+        let activeTab = "dashboard";
+        let isGenerating = false;
+        
+        // Cache to store generated content to avoid re-generating when switching tabs
+        const researchCache = {
+            dashboard: null,
+            swot: null,
+            pestele: null,
+            porters: null,
+            presentation: null,
+            spreadsheet: null,
+            video: null // Stores audio script and data URL
+        };
+
+        let chatHistory = [];
+
+        // API Key Handling
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const apiStatus = document.getElementById('apiStatus');
+        // Gemini API configuration
+        // Using let so it can be updated by the input listener if needed, though we read from input directly.
+        let apiKey = ""; 
+
+        apiKeyInput.addEventListener('input', (e) => {
+            apiKey = e.target.value.trim();
+            if (apiKey.length > 10) {
+                apiStatus.classList.remove('bg-gray-300', 'bg-red-500');
+                apiStatus.classList.add('bg-green-500');
+                apiStatus.title = "API Key Entered";
+            } else {
+                apiStatus.classList.remove('bg-green-500', 'bg-red-500');
+                apiStatus.classList.add('bg-gray-300');
+                apiStatus.title = "API Disconnected";
+            }
+        });
+
+        // Utils
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.remove('bg-gray-900', 'bg-red-600');
+            toast.classList.add(isError ? 'bg-red-600' : 'bg-gray-900');
+            toast.classList.remove('opacity-0');
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 3000);
+        }
+
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => null);
+                        throw new Error(`HTTP error! status: ${response.status}. ${errorData ? JSON.stringify(errorData) : ''}`);
+                    }
+                    return await response.json();
+                } catch (err) {
+                    if (i === maxRetries - 1) throw err;
+                    await new Promise(r => setTimeout(r, delays[i]));
+                }
+            }
+        }
+
+        // PCM to WAV conversion for TTS
+        function pcmToWav(pcmData, sampleRate) {
+            const numChannels = 1; // mono
+            const bitsPerSample = 16;
+            const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+            const blockAlign = numChannels * (bitsPerSample / 8);
+            const wavHeader = new ArrayBuffer(44);
+            const view = new DataView(wavHeader);
+
+            // "RIFF" chunk descriptor
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + pcmData.byteLength, true);
+            writeString(view, 8, 'WAVE');
+
+            // "fmt " sub-chunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+            view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+            view.setUint16(22, numChannels, true); // NumChannels
+            view.setUint32(24, sampleRate, true); // SampleRate
+            view.setUint32(28, byteRate, true); // ByteRate
+            view.setUint16(32, blockAlign, true); // BlockAlign
+            view.setUint16(34, bitsPerSample, true); // BitsPerSample
+
+            // "data" sub-chunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, pcmData.byteLength, true);
+
+            // Combine header and PCM data
+            const wavBytes = new Uint8Array(44 + pcmData.byteLength);
+            wavBytes.set(new Uint8Array(wavHeader), 0);
+            wavBytes.set(new Uint8Array(pcmData), 44);
+
+            return wavBytes;
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binaryString = window.atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function extractSampleRate(mimeType) {
+            const match = mimeType.match(/rate=(\d+)/);
+            return match ? parseInt(match[1], 10) : 24000;
+        }
+
+        // Core Generation Functions
+        async function generateContent(promptText, useSearch = true) {
+            if (!apiKey) {
+                showToast("Please enter your Gemini API Key.", true);
+                apiStatus.classList.remove('bg-gray-300');
+                apiStatus.classList.add('bg-red-500');
+                throw new Error("No API Key");
+            }
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: promptText }] }],
+            };
+
+            if (useSearch) {
+                payload.tools = [{ "google_search": {} }];
+            }
+
+            const data = await fetchWithRetry(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const candidate = data.candidates?.[0];
+            let text = candidate?.content?.parts?.[0]?.text || "";
+            const attributions = candidate?.groundingMetadata?.groundingAttributions;
+
+            // Append citations gracefully
+            if (attributions && attributions.length > 0) {
+                text += "\n\n---\n### References & Data Sources\n";
+                const uniqueUrls = new Set();
+                let refCount = 1;
+                attributions.forEach((attr) => {
+                    if (attr.web?.uri && attr.web?.title) {
+                        if(!uniqueUrls.has(attr.web.uri)){
+                            uniqueUrls.add(attr.web.uri);
+                            text += `* [${refCount}] [${attr.web.title}](${attr.web.uri})\n`;
+                            refCount++;
+                        }
+                    }
+                });
+            }
+
+            return text;
+        }
+
+        async function generateTTS(script) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: script }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } // Professional sounding voice
+                    }
+                },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+
+            const data = await fetchWithRetry(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const inlineData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+            if (!inlineData) throw new Error("No audio data returned");
+
+            const sampleRate = extractSampleRate(inlineData.mimeType);
+            const pcmBuffer = base64ToArrayBuffer(inlineData.data);
+            const wavBytes = pcmToWav(pcmBuffer, sampleRate);
+            
+            const blob = new Blob([wavBytes], { type: 'audio/wav' });
+            return URL.createObjectURL(blob);
+        }
+
+
+        // UI Management
+        function setUIState(state) {
+            const emptyState = document.getElementById('emptyState');
+            const loadingState = document.getElementById('loadingState');
+            const markdownOutput = document.getElementById('markdownOutput');
+            const audioPlayerArea = document.getElementById('audioPlayerArea');
+
+            emptyState.classList.add('hidden');
+            loadingState.classList.add('hidden');
+            markdownOutput.classList.add('hidden');
+            audioPlayerArea.classList.add('hidden');
+
+            if (state === 'empty') emptyState.classList.remove('hidden');
+            if (state === 'loading') loadingState.classList.remove('hidden');
+            if (state === 'content') markdownOutput.classList.remove('hidden');
+            if (state === 'audio') audioPlayerArea.classList.remove('hidden');
+        }
+
+        function getPromptForTab(tab, product, lang) {
+            const baseInstructions = `You are an expert market researcher. Write a highly detailed, professional report. Use the Google Search tool to find the most up-to-date, real-world data, statistics (e.g., Statista, Gartner), supply/demand metrics, and competitor reviews. Respond strictly in ${lang}. Use professional Markdown formatting (tables, bold, lists).`;
+            
+            const prompts = {
+                dashboard: `${baseInstructions}\n\nTask: Create an Executive Dashboard and Comprehensive Market Summary for the product/market: "${product}". Include:\n1. Market Position & Size\n2. Key Competitors & Market Share\n3. Current Supply & Demand trends\n4. Sales Ratings / Customer Sentiment\n5. Key Statistics (cite sources).`,
+                swot: `${baseInstructions}\n\nTask: Perform a deep SWOT Analysis (Strengths, Weaknesses, Opportunities, Threats) for "${product}". Provide detailed bullet points with real market context for each category.`,
+                pestele: `${baseInstructions}\n\nTask: Perform a PESTELE Analysis (Political, Economic, Social, Technological, Environmental, Legal, Ethical) for the market of "${product}". Provide real-world examples and recent regulatory/technological shifts.`,
+                porters: `${baseInstructions}\n\nTask: Analyze "${product}" using Porter's Five Forces framework. Detail the threat of new entrants, bargaining power of buyers, bargaining power of suppliers, threat of substitutes, and competitive rivalry. Include specific market data.`,
+                presentation: `${baseInstructions}\n\nTask: Create a slide-deck presentation outline for "${product}". Format it with headers like "Slide 1: Title", "Slide 2: Market Overview", etc. Include speaking notes for each slide based on real market data.`,
+                spreadsheet: `${baseInstructions}\n\nTask: Create data-rich markdown tables for "${product}" evaluating market trends. Include tables for: 1. Competitor Pricing Matrix 2. Year-over-Year Growth Rates 3. Feature Comparison of top 3 alternatives. Populate with real or highly realistic researched data.`,
+                videoScript: `You are a professional market analyst writing a script for an audio briefing/podcast. \n\nTask: Write an engaging, clear 2-minute spoken summary about the market research for "${product}". Do not include markdown or stage directions like [Music] or (Speaker). Just plain text that flows naturally when spoken out loud. Keep it concise, insightful, and professional. Respond in ${lang}.`
+            };
+
+            return prompts[tab];
+        }
+
+        async function switchTab(tabId) {
+            if (!currentProduct) {
+                showToast("Please enter a product and click Generate first.");
+                return;
+            }
+
+            // Update UI buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            activeTab = tabId;
+
+            // Handle Audio Tab specifically
+            if (tabId === 'video') {
+                if (researchCache.video) {
+                    setUIState('audio');
+                    document.getElementById('audioScript').innerHTML = marked.parse(researchCache.video.script);
+                    document.getElementById('ttsAudio').src = researchCache.video.audioUrl;
+                } else {
+                    await generateTabData(tabId);
+                }
+                return;
+            }
+
+            // Standard Text Tabs
+            if (researchCache[tabId]) {
+                setUIState('content');
+                document.getElementById('markdownOutput').innerHTML = DOMPurify.sanitize(marked.parse(researchCache[tabId]));
+            } else {
+                await generateTabData(tabId);
+            }
+        }
+
+        async function generateTabData(tabId) {
+            if (isGenerating) return;
+            isGenerating = true;
+            setUIState('loading');
+            
+            const lang = document.getElementById('languageSelect').value;
+            
+            try {
+                if (tabId === 'video') {
+                    document.getElementById('loadingText').textContent = "Drafting Script & Generating Audio...";
+                    const prompt = getPromptForTab('videoScript', currentProduct, lang);
+                    const script = await generateContent(prompt, true);
+                    
+                    document.getElementById('loadingText').textContent = "Synthesizing Voice (this takes a moment)...";
+                    // Generate audio based on script
+                    const audioUrl = await generateTTS(script);
+                    
+                    researchCache.video = { script, audioUrl };
+                    
+                    setUIState('audio');
+                    document.getElementById('audioScript').innerHTML = DOMPurify.sanitize(marked.parse(`**Briefing Script:**\n\n${script}`));
+                    document.getElementById('ttsAudio').src = audioUrl;
+                    document.getElementById('ttsAudio').play().catch(e => console.log("Auto-play prevented", e));
+
+                } else {
+                    document.getElementById('loadingText').textContent = `Compiling ${tabId.toUpperCase()} Report...`;
+                    const prompt = getPromptForTab(tabId, currentProduct, lang);
+                    const result = await generateContent(prompt, true);
+                    researchCache[tabId] = result;
+                    
+                    setUIState('content');
+                    document.getElementById('markdownOutput').innerHTML = DOMPurify.sanitize(marked.parse(result));
+                }
+            } catch (error) {
+                console.error(error);
+                showToast(error.message || "Failed to generate report.", true);
+                setUIState(researchCache[tabId] ? 'content' : 'empty');
+            } finally {
+                isGenerating = false;
+                document.getElementById('loadingText').textContent = "Gathering Market Data...";
+            }
+        }
+
+        async function startResearch() {
+            const input = document.getElementById('productInput').value.trim();
+            if (!input) {
+                showToast("Please enter a product name.");
+                return;
+            }
+            if (!apiKey) {
+                showToast("Please enter your Gemini API Key.", true);
+                return;
+            }
+
+            currentProduct = input;
+            
+            // Clear cache
+            Object.keys(researchCache).forEach(k => researchCache[k] = null);
+            
+            // Reset UI
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.tab-btn').classList.add('active'); // Set dashboard active
+            activeTab = 'dashboard';
+            
+            // Add system prompt to chat history based on new product
+            const lang = document.getElementById('languageSelect').value;
+            chatHistory = [
+                {
+                    role: "user",
+                    parts: [{ text: `System Instruction: You are a helpful market research assistant. I am researching "${currentProduct}". Use the search tool to find data to answer my questions accurately. Respond in ${lang}.` }]
+                },
+                {
+                    role: "model",
+                    parts: [{ text: "Understood. I'm ready to answer your questions about the market research." }]
+                }
+            ];
+            
+            // Clear chat UI
+            document.getElementById('chatMessages').innerHTML = `
+                <div class="flex gap-3">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-robot text-primary text-sm"></i>
+                    </div>
+                    <div class="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm border border-gray-100 text-sm text-gray-700">
+                        Research started for <strong>${currentProduct}</strong>. You can ask me questions about it while reviewing the reports!
+                    </div>
+                </div>
+            `;
+
+            // Start fetching dashboard
+            await generateTabData('dashboard');
+        }
+
+        // Chatbot Logic
+        function appendChatMessage(text, sender) {
+            const chatMessages = document.getElementById('chatMessages');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `flex gap-3 ${sender === 'user' ? 'flex-row-reverse' : ''}`;
+            
+            let iconHtml = '';
+            let bubbleClass = '';
+
+            if (sender === 'user') {
+                iconHtml = `<div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-500 text-sm"></i></div>`;
+                bubbleClass = "bg-primary text-white p-3 rounded-2xl rounded-tr-none shadow-sm text-sm";
+            } else {
+                iconHtml = `<div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0"><i class="fa-solid fa-robot text-primary text-sm"></i></div>`;
+                bubbleClass = "bg-white p-3 rounded-2xl rounded-tl-none shadow-sm border border-gray-100 text-sm text-gray-700 markdown-chat";
+            }
+
+            // Minimal sanitization and parsing for chat
+            const parsedText = sender === 'model' ? DOMPurify.sanitize(marked.parse(text)) : text;
+
+            msgDiv.innerHTML = `
+                ${iconHtml}
+                <div class="${bubbleClass}">
+                    ${sender === 'model' ? parsedText : parsedText}
+                </div>
+            `;
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return msgDiv;
+        }
+
+        async function sendMessage() {
+            const inputEl = document.getElementById('chatInput');
+            const text = inputEl.value.trim();
+            if (!text) return;
+            if (!apiKey) {
+                showToast("API Key required.", true);
+                return;
+            }
+
+            // Append User message
+            appendChatMessage(text, 'user');
+            inputEl.value = '';
+            inputEl.style.height = '';
+
+            // Add loading indicator
+            const loadingMsg = appendChatMessage("<i class='fa-solid fa-ellipsis text-gray-400 fa-fade'></i>", 'model');
+
+            // Update History
+            chatHistory.push({ role: 'user', parts: [{ text }] });
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                
+                // Construct context. Inject active tab content if available to ground the chat further
+                let contextAddon = "";
+                if (researchCache[activeTab]) {
+                    contextAddon = `\n\nReference the following data from the current ${activeTab} tab if relevant: \n${researchCache[activeTab].substring(0, 3000)}...`; // truncate to avoid massive payload
+                }
+                
+                // Clone history and append context to latest user message
+                const payloadHistory = JSON.parse(JSON.stringify(chatHistory));
+                payloadHistory[payloadHistory.length-1].parts[0].text += contextAddon;
+
+                const payload = {
+                    contents: payloadHistory,
+                    tools: [{ "google_search": {} }]
+                };
+
+                const data = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const candidate = data.candidates?.[0];
+                let responseText = candidate?.content?.parts?.[0]?.text || "I couldn't process that.";
+                const attributions = candidate?.groundingMetadata?.groundingAttributions;
+
+                if (attributions && attributions.length > 0) {
+                    responseText += "\n\n*Sources:* ";
+                    const uniqueUrls = new Set();
+                    attributions.forEach((attr) => {
+                        if (attr.web?.uri && !uniqueUrls.has(attr.web.uri)) {
+                            uniqueUrls.add(attr.web.uri);
+                            responseText += `[${attr.web.title}](${attr.web.uri}) `;
+                        }
+                    });
+                }
+
+                // Remove loading
+                loadingMsg.remove();
+                
+                // Append AI Response
+                appendChatMessage(responseText, 'model');
+
+                // Update history
+                chatHistory.push({ role: 'model', parts: [{ text: responseText }] });
+
+            } catch (error) {
+                console.error(error);
+                loadingMsg.remove();
+                appendChatMessage("Sorry, an error occurred communicating with the API.", 'model');
+                chatHistory.pop(); // remove failed user message
+            }
+        }
+
+        // Initialize empty state
+        setUIState('empty');
+    </script>
+</body>
+</html>
